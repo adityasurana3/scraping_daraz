@@ -10,46 +10,49 @@ import time
 
 class DarazSpider(scrapy.Spider):
     name = 'daraz'
-    start_urls = ['https://www.daraz.com.np/mens-clothing/?ajax=true&page=1']
-
-    def __init__(self):
-        self.driver = webdriver.Chrome(executable_path='/home/aditya/Downloads/chromedriver-linux64/chromedriver')
-        self.driver.headless = True
+    start_urls = [
+        'https://www.daraz.com.np/mens-clothing/?ajax=true',
+        'https://www.daraz.com.np/womens-clothing/?ajax=true',
+        'https://www.daraz.com.np/mens-watches/?ajax=true',
+        'https://www.daraz.com.np/mens-shoes/?ajax=true',
+        'https://www.daraz.com.np/men-accessories/?ajax=true',
+        'https://www.daraz.com.np/womens-watches/?ajax=true',
+        'https://www.daraz.com.np/womens-shoes/?ajax=true',
+        'https://www.daraz.com.np/womens-accessories/?ajax=true',
+        'https://www.daraz.com.np/baby-gear/?ajax=true',
+        'https://www.daraz.com.np/baby-toddler-toys-games/?ajax=true'
+    ]
+    
 
     def parse(self, response):
+        last_page = 1
+        url = response.url
+        
+        for i in range(1,last_page+1):
+            yield scrapy.Request(f"{url}&page={i}", callback=self.parse_data)
+    
+    def parse_data(self, response):
+        print(response.url)
         datas = json.loads(response.text)['mods']['listItems']
-        for data in datas[:5]:
+        categories = response.url.split('/')[3].split('-')
+        if len(categories)>1:
+            category = categories[0]
+            sub_category = categories[1]
+        else:
+            category = categories[0]
+            sub_category = ''
+        for data in datas:
             name = data.get('name')
             rating = data.get('ratingScore','')
-            product_url = 'https:'+data.get('productUrl','')
-            yield scrapy.Request(url=product_url, callback=self.parse_data, cb_kwargs={'name':name, 'rating':rating})
-
-    def parse_data(self, response, name, rating):
-        self.driver.get(response.url)
-        WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".review-item")))
-        # with open('index.html','a') as f:
-        #     f.write(self.driver.page_source)
-        total_number_review = self.driver.find_elements(By.CLASS_NAME, "ant-pagination-item")
-        review =[review.text for review in total_number_review]
-        total_review =int(review[-1])
-        review = []
-        for i in range(1,total_review):
-            self.driver.execute_script(f"document.querySelector('.ant-pagination-item-{i}').click()")
-            time.sleep(0.5)
-            reviews = self.driver.find_elements(By.XPATH, "//div[@class='review-content-sl']")
-            review.append([review.text for review in reviews])
-
-        yield {
-            'name':name,
-            'rating':rating,
-            'review': review
-        }
-        
-        
-
-
-
-
-
-# document.getElementById('rc_select_1_list_4').click()
-#
+            images = data.get('image','')
+            total_number_of_rating = data.get('review','')
+            yield {
+                'url': response.url,
+                'name':name,
+                'rating':rating,
+                'category':category,
+                'sub_category':sub_category,
+                'images':images,
+                'total_number_of_rating':total_number_of_rating,
+            }
+            
